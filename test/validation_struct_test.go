@@ -521,3 +521,107 @@ func TestValidasiBasicSlice(t *testing.T) {
 	}
 
 }
+
+// TestValidasiMap untuk validasi pada tipe data map
+// dalam map karea ada key-value. maka kita bisa menambahkan dive untuk key dan value
+// menggunakan keys dan endkeys
+func TestValidasiMap(t *testing.T) {
+	validate := validator.New()
+
+	type School struct {
+		Name    string `json:"name,omitempty" validate:"required,min=2"`
+		Address string `json:"address,omitempty" validate:"required,min=2"`
+	}
+
+	scenario := []struct {
+		Name        string
+		Input       map[string]*School // variabel yang akan divalidasi
+		Tag         string             // tag validation untuk map
+		ExpectError bool
+	}{
+		{
+			Name: "test validation map failed",
+			Input: map[string]*School{
+				"s": &School{
+					Name:    "a",
+					Address: "a",
+				},
+			},
+			Tag:         "dive,keys,min=2,endkeys,required",
+			ExpectError: true,
+		},
+		{
+			Name: "test validatio map success",
+			Input: map[string]*School{
+				"sd": {
+					Name:    "SD N 1",
+					Address: "Jakarta Selatan",
+				},
+			},
+			Tag:         "required,dive,keys,min=2,endkeys,required",
+			ExpectError: false,
+		},
+	}
+
+	for _, testScenario := range scenario {
+		t.Run(testScenario.Name, func(t *testing.T) {
+			err := validate.VarCtx(context.Background(), testScenario.Input, testScenario.Tag)
+			if err != nil {
+				for _, errorField := range err.(validator.ValidationErrors) {
+					log.Println(errorField.Error())
+				}
+			}
+
+			assert.Equal(t, err != nil, testScenario.ExpectError)
+		})
+	}
+}
+
+// TestValidasiBasicMap untuk validasi pada tipe data basic map[string]string
+// karena map punya key-value, untuk vlaidasi tag pada key wajib ditambahkan keys dan endkeys
+// contoh : map[string]string `required,dive,keys,required,alpha,endkeys,dive,email,min=5`
+func TestValidasiBasicMap(t *testing.T) {
+	validate := validator.New()
+
+	scenario := []struct {
+		Name        string
+		Input       map[string]string // variabel yang akan divalidasi
+		Tag         string            // tag validasi untuk variabel map
+		ExpectError bool
+	}{
+		{
+			Name: "test validasi basic map failed",
+			Input: map[string]string{
+				"user1": "user1",
+				"user2": "user2@gmail.com",
+				"user3": "",
+				"a":     "reo@gmail.com",
+			},
+			Tag:         "required,dive,keys,required,min=3,endkeys,required,email,min=12",
+			ExpectError: true,
+		},
+		{
+			Name: "test validasi basic map success",
+			Input: map[string]string{
+				"server1": "172.18.10.22",
+				"server2": "172.18.10.23",
+				"server3": "172.18.10.24",
+			},
+			Tag:         "required,dive,keys,required,endkeys,required,ip",
+			ExpectError: false,
+		},
+	}
+
+	for _, testScenario := range scenario {
+		t.Run(testScenario.Name, func(t *testing.T) {
+			err := validate.VarCtx(context.Background(), testScenario.Input, testScenario.Tag)
+			if err != nil {
+				for _, errorField := range err.(validator.ValidationErrors) {
+					log.Println(errorField.Error())
+				}
+			}
+
+			assert.Equal(t, err != nil, testScenario.ExpectError)
+		})
+	}
+}
