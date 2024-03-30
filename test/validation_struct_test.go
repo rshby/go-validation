@@ -5,6 +5,8 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 	"log"
+	"slices"
+	"strconv"
 	"testing"
 )
 
@@ -624,4 +626,224 @@ func TestValidasiBasicMap(t *testing.T) {
 			assert.Equal(t, err != nil, testScenario.ExpectError)
 		})
 	}
+}
+
+// TestAliasTag untuk mengganti nama tag sesuai dengan custom tag kita
+// valdate.RegisterAlias(alias, tag)
+func TestAliasTag(t *testing.T) {
+	validate := validator.New()
+	validate.RegisterAlias("app_email", "required,email,min=15")
+
+	scenario := []struct {
+		Name        string
+		Input       string
+		ExpectError bool
+	}{
+		{
+			Name:        "test validasi using alias failed",
+			Input:       "reoo",
+			ExpectError: true,
+		},
+		{
+			Name:        "test validasi using alias success",
+			Input:       "reoshby1299@gmail.com",
+			ExpectError: false,
+		},
+	}
+
+	for _, testScenario := range scenario {
+		t.Run(testScenario.Name, func(t *testing.T) {
+			err := validate.VarCtx(context.Background(), testScenario.Input, "app_email")
+			if err != nil {
+				for _, errorField := range err.(validator.ValidationErrors) {
+					log.Println(errorField.Error())
+				}
+			}
+
+			assert.Equal(t, err != nil, testScenario.ExpectError)
+		})
+	}
+}
+
+// TestCustomValidation untuk menambahkan costum logic validasi
+// misal kita memiliki validasi yang lebih kompleks, bisa buat sendiri logic validasinya
+// kemudian kita register aliasnya dengan tag yang kita inginkan
+func TestCustomValidation(t *testing.T) {
+	validate := validator.New()
+
+	// create constum function validation
+	validateType := func(field validator.FieldLevel) bool {
+		ourType := []string{"hobby", "gadget", "adventure", "automotive"}
+
+		value, ok := field.Field().Interface().(string)
+		if !ok {
+			return false
+		}
+		return slices.Contains(ourType, value)
+	}
+
+	// register
+	validate.RegisterValidation("category", validateType, false)
+
+	scenario := []struct {
+		Name        string
+		Input       string
+		ExpectError bool
+	}{
+		{
+			Name:        "test validation category failed",
+			Input:       "abcd",
+			ExpectError: true,
+		},
+		{
+			Name:        "test validation category success",
+			Input:       "gadget",
+			ExpectError: false,
+		},
+	}
+
+	for _, testScenario := range scenario {
+		t.Run(testScenario.Name, func(t *testing.T) {
+			err := validate.VarCtx(context.Background(), testScenario.Input, "category")
+			if err != nil {
+				for _, errorField := range err.(validator.ValidationErrors) {
+					log.Println(errorField.Error())
+				}
+			}
+
+			assert.Equal(t, err != nil, testScenario.ExpectError)
+		})
+	}
+}
+
+// TestCustomValidationParameter untuk menambahkan costum validasi yang memerlukan parameter
+func TestCustomValidationParameter(t *testing.T) {
+	validate := validator.New()
+
+	// create function length array
+	validateMinCategory := func(field validator.FieldLevel) bool {
+		length, err := strconv.Atoi(field.Param())
+		if err != nil {
+			panic(err)
+			return false
+		}
+
+		ourType := []string{"a", "b", "c", "d", "e"}
+		value, ok := field.Field().Interface().([]string)
+		if !ok {
+			return false
+		}
+
+		// cek eaech type
+		for _, catType := range value {
+			if !slices.Contains(ourType, catType) {
+				return false
+			}
+		}
+
+		if len(value) < length {
+			return false
+		}
+
+		return true
+	}
+
+	// register validate
+	validate.RegisterValidation("min_category", validateMinCategory)
+
+	// create scenario
+	scenario := []struct {
+		Name        string
+		Input       []string
+		ExpectError bool
+	}{
+		{
+			Name:        "test validasi category param failed",
+			Input:       []string{"a"},
+			ExpectError: true,
+		},
+		{
+			Name:        "test validasi category param success",
+			Input:       []string{"a", "b", "c"},
+			ExpectError: false,
+		},
+		{
+			Name:        "test validasi category not in options",
+			Input:       []string{"r", "e", "o"},
+			ExpectError: true,
+		},
+	}
+
+	for _, testScenario := range scenario {
+		t.Run(testScenario.Name, func(t *testing.T) {
+			err := validate.VarCtx(context.Background(), testScenario.Input, "min_category=2")
+			if err != nil {
+				for _, errorField := range err.(validator.ValidationErrors) {
+					log.Println(errorField.Error())
+				}
+			}
+
+			assert.Equal(t, err != nil, testScenario.ExpectError)
+		})
+	}
+}
+
+// TestCustomMessageValidation untuk memberi message validasi sesuai dengan custom kita
+func TestCustomMessageValidation(t *testing.T) {
+	validate := validator.New()
+
+	// register custom gender validation
+	genderValidation := func(field validator.FieldLevel) bool {
+		value, ok := field.Field().Interface().(string)
+		if !ok {
+			return false
+		}
+
+		return slices.Contains([]string{"male", "female"}, value)
+	}
+
+	// add register
+	validate.RegisterValidation("gender", genderValidation)
+
+	// add custom Message
+	ErrorMessage := func(tag string) string {
+		switch tag {
+		case "gender":
+			return "gender must be male or female"
+		default:
+			return "unknown error"
+		}
+	}
+
+	// create scenario
+	scenario := []struct {
+		Name        string
+		Input       string
+		ExpectError bool
+	}{
+		{
+			Name:        "test validation gender failed",
+			Input:       "mafale",
+			ExpectError: true,
+		},
+		{
+			Name:        "test validation gender success",
+			Input:       "male",
+			ExpectError: false,
+		},
+	}
+
+	for _, testScenario := range scenario {
+		t.Run(testScenario.Name, func(t *testing.T) {
+			err := validate.VarCtx(context.Background(), testScenario.Input, "gender")
+			if err != nil {
+				for _, errorField := range err.(validator.ValidationErrors) {
+					log.Println(ErrorMessage(errorField.Tag()))
+				}
+			}
+
+			assert.Equal(t, err != nil, testScenario.ExpectError)
+		})
+	}
+
 }
